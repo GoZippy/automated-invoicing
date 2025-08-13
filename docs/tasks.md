@@ -25,7 +25,7 @@
 
 ## M5: Persistence Agent & DB Tools
 - [ ] Add Postgres tool for `invoice_line_items` inserts
-- [ ] Document transaction approach (two-phase insert)
+- [x] Document transaction approach (two-phase insert)
 
 ## M6: Query Agent & Chat Memory
 - [x] Ensure `messages` table compatible with memory node
@@ -34,6 +34,7 @@
 ## M7: Observability & Ops
 - [x] Add healthcheck to Postgres in Compose
 - [x] Add runbook with common failures & resolutions
+- [x] Add metrics guide
 
 ## M8: Security & Compliance
 - [x] Add security checklist and secret handling rules
