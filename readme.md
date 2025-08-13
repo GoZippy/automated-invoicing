@@ -43,6 +43,12 @@ This workflow is designed to automate the processing of invoices. It integrates 
 
 Watch the demo [![Watch the demo video](/images/demo-thumnail.png)](https://drive.google.com/file/d/1f7nTpdGAobaGhbfCs45dRpFxlWvLYoxD/view?usp=sharing)
 
+See more in `docs/`:
+- `docs/MILESTONES_AND_TASKS.md`
+- `docs/DEPLOYMENT.md`
+- `docs/API.md`
+- `docs/WORKFLOW_GUIDE.md`
+
 ## Functionality
 
 - **Webhook Endpoint**: Accepts incoming POST requests with authentication and processes queries with user and session information.
@@ -53,11 +59,29 @@ Watch the demo [![Watch the demo video](/images/demo-thumnail.png)](https://driv
 - **Google Drive Integration**: Monitors a specific folder for new invoice images to process.
 - **Data Validation and Transformation**: Ensures the accuracy and consistency of the invoice data before it enters the database.
 
+## Quickstart (Docker Compose)
+
+1. Copy env template and start
+```bash
+cp .env.example .env
+make up
+```
+
+2. Initialize and seed the database
+```bash
+make init-db
+make seed
+```
+
+3. Open n8n at http://localhost:5678 and import the workflow (`Intelligent_Invoicing final.json`). Configure credentials as needed. See `docs/WORKFLOW_GUIDE.md`.
+
+4. Test the webhook (see `docs/API.md`).
+
 ## Setup
 
 1. **n8n Installation**: Ensure that n8n is installed and running in your environment. You can find installation instructions on the [official n8n documentation](https://docs.n8n.io/getting-started/installation/).
 
-2. **Workflow Import**: Import the `Intelligent_Invoicing.json` workflow file into your n8n instance.
+2. **Workflow Import**: Import the `Intelligent_Invoicing final.json` workflow file into your n8n instance.
 
 3. **Configure Credentials**:
    - Set up the necessary credentials for Postgres, OpenAI, and Google Drive within the n8n Credentials section.

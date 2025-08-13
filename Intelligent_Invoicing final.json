@@ -408,7 +408,9 @@
             "amount": "={{ JSON.parse($json[\"query\"]).invoice_details.amount }}",
             "status": "={{ JSON.parse($json[\"query\"]).invoice_details.status }}",
             "invoice_number": "={{ JSON.parse($json[\"query\"]).invoice_details.invoice_number }}",
-            "address": "={{ JSON.parse($json[\"query\"]).invoice_details.address }}"
+            "address": "={{ JSON.parse($json[\"query\"]).invoice_details.address }}",
+            "issue_date": "={{ JSON.parse($json[\"query\"]).invoice_details.issue_date }}",
+            "due_date": "={{ JSON.parse($json[\"query\"]).invoice_details.due_date }}"
           },
           "matchingColumns": [
             "id"
