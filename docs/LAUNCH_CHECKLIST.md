@@ -1,0 +1,34 @@
+### Launch Checklist
+
+- [ ] Infrastructure
+  - [ ] Postgres provisioned and reachable
+  - [ ] n8n deployed and secured (auth enabled)
+  - [ ] Backups configured for Postgres
+- [ ] Configuration
+  - [ ] All secrets set (OpenAI, Google, DB)
+  - [ ] Webhook URL reachable from clients
+  - [ ] HMAC or header auth enforced at webhook
+- [ ] Database
+  - [ ] Schema applied (invoices, invoice_line_items, messages)
+  - [ ] Seed data loaded for smoke tests
+  - [x] Overdue status job in place
+- [ ] Workflow
+  - [ ] Google Drive trigger points to correct folder
+  - [ ] Image extraction validated on 3+ sample invoices
+  - [ ] Invoice + line item inserts transactional
+- [ ] Query Agent
+  - [ ] Handles unpaid/overdue/paid queries
+  - [ ] Date range queries verified
+  - [ ] Summaries and totals accurate
+- [ ] Security
+  - [ ] Least-privilege DB credentials
+  - [ ] Secrets rotated and stored securely
+  - [ ] PII handling documented
+- [ ] Observability
+  - [ ] Health endpoints monitored
+  - [ ] Error alerts wired up
+  - [ ] Logs retained and searchable
+- [ ] QA/UAT
+  - [ ] Test plan executed end-to-end
+  - [ ] Stakeholder sign-off
+  - [ ] Rollback plan documented
