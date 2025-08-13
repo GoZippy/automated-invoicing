@@ -1,0 +1,461 @@
+{
+  "name": "Invoice Processing Enhanced",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "invoice-upload",
+        "authentication": "headerAuth",
+        "headerAuth": {
+          "type": "headerAuthCredential",
+          "headerAuthCredential": {
+            "name": "Webhook Auth",
+            "value": "={{$credentials.webhookAuth}}"
+          }
+        },
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [250, 300],
+      "webhookId": "invoice-upload-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate webhook signature\nconst signature = $input.first().headers['x-webhook-signature'];\nconst payload = JSON.stringify($input.first().json);\nconst secret = $env.WEBHOOK_SECRET;\n\nconst crypto = require('crypto');\nconst expectedSignature = crypto\n  .createHmac('sha256', secret)\n  .update(payload)\n  .digest('hex');\n\nif (signature !== expectedSignature) {\n  throw new Error('Invalid webhook signature');\n}\n\n// Validate input data\nconst data = $input.first().json;\nconst errors = [];\n\nif (!data.user_id || !data.user_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {\n  errors.push('Invalid user_id');\n}\n\nif (!data.file || !data.file.base64) {\n  errors.push('No file provided');\n}\n\nif (data.file && data.file.size > 10485760) {\n  errors.push('File size exceeds 10MB limit');\n}\n\nconst allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];\nif (data.file && !allowedTypes.includes(data.file.mimeType)) {\n  errors.push('Invalid file type');\n}\n\nif (errors.length > 0) {\n  throw new Error('Validation failed: ' + errors.join(', '));\n}\n\nreturn data;"
+      },
+      "id": "validate-input",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "invoices",
+        "fileName": "={{$json.user_id}}/{{$json.file.filename}}",
+        "binaryPropertyName": "file",
+        "options": {
+          "upsert": true
+        }
+      },
+      "id": "upload-to-storage",
+      "name": "Upload to Supabase Storage",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase Account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$node['Upload to Supabase Storage'].error}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-upload-error",
+      "name": "Check Upload Error",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "annotate",
+        "image": "={{$json.file.base64}}",
+        "features": ["TEXT_DETECTION", "DOCUMENT_TEXT_DETECTION"],
+        "options": {}
+      },
+      "id": "google-vision-ocr",
+      "name": "Google Vision OCR",
+      "type": "n8n-nodes-base.googleVision",
+      "typeVersion": 1,
+      "position": [1050, 200],
+      "credentials": {
+        "googleVisionApi": {
+          "id": "2",
+          "name": "Google Vision API"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4-turbo-preview",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an AI assistant specialized in extracting information from invoices. Extract the following information from the provided invoice text and return it in a structured JSON format:\n\n{\n  \"invoice_number\": \"string\",\n  \"invoice_date\": \"YYYY-MM-DD\",\n  \"due_date\": \"YYYY-MM-DD or null\",\n  \"vendor\": {\n    \"name\": \"string\",\n    \"address\": \"string or null\",\n    \"email\": \"string or null\",\n    \"phone\": \"string or null\",\n    \"tax_id\": \"string or null\"\n  },\n  \"customer\": {\n    \"name\": \"string\",\n    \"address\": \"string or null\",\n    \"email\": \"string or null\",\n    \"phone\": \"string or null\",\n    \"tax_id\": \"string or null\"\n  },\n  \"line_items\": [\n    {\n      \"description\": \"string\",\n      \"quantity\": number,\n      \"unit_price\": number,\n      \"total\": number\n    }\n  ],\n  \"subtotal\": number,\n  \"tax_amount\": number,\n  \"total_amount\": number,\n  \"currency\": \"3-letter code\",\n  \"payment_terms\": \"string or null\",\n  \"notes\": \"string or null\"\n}"
+            },
+            {
+              "role": "user",
+              "content": "Extract invoice information from this text:\n\n{{$json.text}}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.1,
+          "responseFormat": {
+            "type": "json_object"
+          }
+        }
+      },
+      "id": "openai-extraction",
+      "name": "OpenAI Extraction",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1250, 200],
+      "credentials": {
+        "openAiApi": {
+          "id": "3",
+          "name": "OpenAI API"
+        }
+      },
+      "retry": {
+        "enabled": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "exponentialBackoff": true
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "invoices",
+        "columns": "user_id, invoice_number, invoice_date, due_date, vendor_name, vendor_address, vendor_email, customer_name, customer_address, customer_email, currency, subtotal, tax_amount, total_amount, payment_terms, notes, original_file_url, ai_extracted_data, processing_status",
+        "values": "={{$json.user_id}}, {{$json.extracted.invoice_number}}, {{$json.extracted.invoice_date}}, {{$json.extracted.due_date}}, {{$json.extracted.vendor.name}}, {{$json.extracted.vendor.address}}, {{$json.extracted.vendor.email}}, {{$json.extracted.customer.name}}, {{$json.extracted.customer.address}}, {{$json.extracted.customer.email}}, {{$json.extracted.currency}}, {{$json.extracted.subtotal}}, {{$json.extracted.tax_amount}}, {{$json.extracted.total_amount}}, {{$json.extracted.payment_terms}}, {{$json.extracted.notes}}, {{$json.file_url}}, {{$json.extracted}}, completed",
+        "options": {
+          "returnFields": "*"
+        }
+      },
+      "id": "insert-invoice",
+      "name": "Insert Invoice",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1450, 200],
+      "credentials": {
+        "postgres": {
+          "id": "4",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "line_items",
+        "columns": "invoice_id, item_order, description, quantity, unit_price, total_amount",
+        "values": "={{$json.invoice_id}}, {{$itemIndex + 1}}, {{$json.description}}, {{$json.quantity}}, {{$json.unit_price}}, {{$json.total}}",
+        "options": {
+          "mode": "multiple"
+        }
+      },
+      "id": "insert-line-items",
+      "name": "Insert Line Items",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1650, 200],
+      "credentials": {
+        "postgres": {
+          "id": "4",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "audit_logs",
+        "columns": "user_id, action, entity_type, entity_id, metadata",
+        "values": "={{$json.user_id}}, invoice_processed, invoice, {{$json.invoice_id}}, {{JSON.stringify({workflow: 'invoice-processing', execution_id: $execution.id, processing_time: Date.now() - $execution.startedAt})}}",
+        "options": {}
+      },
+      "id": "audit-log",
+      "name": "Audit Log",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1850, 200],
+      "credentials": {
+        "postgres": {
+          "id": "4",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "noreply@intelligentinvoicing.com",
+        "toEmail": "={{$json.user_email}}",
+        "subject": "Invoice Processed Successfully",
+        "text": "Your invoice {{$json.invoice_number}} has been processed successfully.\n\nTotal Amount: {{$json.total_amount}} {{$json.currency}}\nDue Date: {{$json.due_date}}\n\nYou can view the invoice details in your dashboard.",
+        "options": {}
+      },
+      "id": "send-notification",
+      "name": "Send Notification",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [2050, 200],
+      "credentials": {
+        "smtp": {
+          "id": "5",
+          "name": "SMTP Server"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": {
+          "success": true,
+          "invoice_id": "={{$json.invoice_id}}",
+          "invoice_number": "={{$json.invoice_number}}",
+          "total_amount": "={{$json.total_amount}}",
+          "currency": "={{$json.currency}}",
+          "message": "Invoice processed successfully"
+        },
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "success-response",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2250, 200]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "failed_invoices",
+        "columns": "user_id, file_url, error_message, error_details, created_at",
+        "values": "={{$json.user_id}}, {{$json.file_url}}, {{$json.error.message}}, {{JSON.stringify($json.error)}}, {{new Date().toISOString()}}",
+        "options": {}
+      },
+      "id": "log-failure",
+      "name": "Log Failure",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1250, 400],
+      "credentials": {
+        "postgres": {
+          "id": "4",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": {
+          "success": false,
+          "error": "{{$json.error.message}}",
+          "message": "Invoice processing failed. Our team has been notified."
+        },
+        "options": {
+          "responseCode": 500,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "error-response",
+      "name": "Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1450, 400]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input": {
+      "main": [
+        [
+          {
+            "node": "Upload to Supabase Storage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to Supabase Storage": {
+      "main": [
+        [
+          {
+            "node": "Check Upload Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Upload Error": {
+      "main": [
+        [
+          {
+            "node": "Google Vision OCR",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Vision OCR": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Extraction": {
+      "main": [
+        [
+          {
+            "node": "Insert Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Invoice": {
+      "main": [
+        [
+          {
+            "node": "Insert Line Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Line Items": {
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Send Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Notification": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Failure": {
+      "main": [
+        [
+          {
+            "node": "Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "error-handler-workflow"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "id": "1",
+      "name": "invoice-processing"
+    },
+    {
+      "id": "2", 
+      "name": "production"
+    }
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2024-01-15T10:00:00.000Z",
+  "versionId": "v1.0.0"
+}
