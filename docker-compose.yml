@@ -1,0 +1,52 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: invoicing
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  n8n:
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=invoicing
+      - DB_POSTGRESDB_USER=postgres
+      - DB_POSTGRESDB_PASSWORD=postgres
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
+      - GENERIC_TIMEZONE=UTC
+      - EXECUTIONS_PROCESS=main
+    depends_on:
+      - postgres
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - "./Intelligent_Invoicing final.json:/home/node/.n8n/workflows/Intelligent_Invoicing.json"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8000:8000"
+    environment:
+      - AGENT_WEBHOOK_URL=http://n8n:5678/webhook/d9fec84b-86f0-4230-9fd4-c1cb392ff8b5
+    depends_on:
+      - n8n
+
+volumes:
+  pgdata:
+  n8n_data:

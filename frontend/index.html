@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Intelligent Invoicing</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; }
+    #chat-log { border: 1px solid #ccc; padding: 1rem; height: 300px; overflow-y: scroll; }
+    #chat-log p { margin: 0.5rem 0; }
+  </style>
+</head>
+<body>
+  <h1>Intelligent Invoicing</h1>
+
+  <section>
+    <h2>Upload Invoice</h2>
+    <form id="upload-form">
+      <input type="file" id="invoice-file" name="file" accept="application/pdf,image/*" required />
+      <input type="text" id="user-id" placeholder="User ID" required />
+      <button type="submit">Upload</button>
+    </form>
+    <p id="upload-status"></p>
+  </section>
+
+  <hr />
+
+  <section>
+    <h2>Chat</h2>
+    <div id="chat-log"></div>
+    <form id="chat-form">
+      <input type="text" id="message" placeholder="Ask something..." style="width: 80%;" required />
+      <input type="hidden" id="session-id" value="" />
+      <button type="submit">Send</button>
+    </form>
+  </section>
+
+  <script>
+    const apiBase = "http://localhost:8000";
+
+    document.getElementById('upload-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fileInput = document.getElementById('invoice-file');
+      const userId = document.getElementById('user-id').value;
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      formData.append('user_id', userId);
+      const res = await fetch(`${apiBase}/upload-invoice`, { method: 'POST', body: formData });
+      const data = await res.json();
+      document.getElementById('upload-status').textContent = data.success ? `File uploaded: ${data.file_id}` : 'Upload failed';
+    });
+
+    document.getElementById('chat-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const messageInput = document.getElementById('message');
+      let sessionIdInput = document.getElementById('session-id');
+      if (!sessionIdInput.value) {
+        sessionIdInput.value = crypto.randomUUID();
+      }
+      const payload = new FormData();
+      payload.append('session_id', sessionIdInput.value);
+      payload.append('query', messageInput.value);
+      payload.append('user_id', document.getElementById('user-id').value || 'anon');
+      const res = await fetch(`${apiBase}/chat`, { method: 'POST', body: payload });
+      const data = await res.json();
+      const log = document.getElementById('chat-log');
+      log.innerHTML += `<p><strong>You:</strong> ${messageInput.value}</p>`;
+      log.innerHTML += `<p><strong>AI:</strong> ${data.reply || JSON.stringify(data)}</p>`;
+      log.scrollTop = log.scrollHeight;
+      messageInput.value = '';
+    });
+  </script>
+</body>
+</html>
