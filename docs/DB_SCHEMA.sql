@@ -153,3 +153,10 @@ BEGIN
 
   -- Deferred constraint will validate totals at commit time
 END; $$ LANGUAGE plpgsql;
+
+-- Convenience views for common filters
+CREATE OR REPLACE VIEW public.unpaid_invoices AS
+SELECT * FROM public.invoices WHERE status <> 'paid';
+
+CREATE OR REPLACE VIEW public.overdue_invoices AS
+SELECT * FROM public.invoices WHERE status = 'pending' AND due_date IS NOT NULL AND due_date < CURRENT_DATE;
