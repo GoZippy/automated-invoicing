@@ -85,3 +85,13 @@ Watch the demo [![Watch the demo video](/images/demo-thumnail.png)](https://driv
 - Make sure to review and test each node's functionality and settings according to your specific use case.
 - Adjust the workflow and settings as needed to fit your environment and data structure.
 - Regularly check the workflow execution logs to monitor for any issues or errors.
+
+## Local Development
+
+1. Copy `.env.example` to `.env` and update values as needed.
+2. Start services: `make up`
+3. Initialize database schema: `make db-init`
+4. Open n8n at `http://localhost:${N8N_PORT}` and import `n8n_workflow_intelligent_invoicing.json`.
+5. Create credentials in n8n for Postgres, OpenAI, Google Drive, and Webhook Header Auth.
+6. Run a manual test execution end-to-end (Drive image → JSON → DB).
+7. Test the webhook with `scripts/test_webhook.sh`.

@@ -1,0 +1,6 @@
+{
+  "query": "Show me unpaid invoices from last month",
+  "user_id": "local-user",
+  "request_id": "req-123",
+  "session_id": "sess-123"
+}

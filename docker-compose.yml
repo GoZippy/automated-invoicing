@@ -1,0 +1,54 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: intelligent-invoicing-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-invoicer}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-invoicerpw}
+      POSTGRES_DB: ${POSTGRES_DB:-invoicing}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-invoicer}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: intelligent-invoicing-pgadmin
+    depends_on:
+      - postgres
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-adminpw}
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: intelligent-invoicing-n8n
+    depends_on:
+      - postgres
+    ports:
+      - "${N8N_PORT:-5678}:5678"
+    environment:
+      N8N_HOST: ${N8N_HOST:-localhost}
+      N8N_PORT: 5678
+      N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
+      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-UTC}
+      # DB used by workflow nodes (external Postgres service)
+      # Configure credentials within n8n UI using host "postgres"
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+volumes:
+  pgdata:
+  pgadmin_data:
+  n8n_data:
